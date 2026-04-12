@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/ui/Button';
 import { useProfile } from '../hooks/useProfile';
+import { storageSet } from '../lib/storage';
+import { KEYS } from '../lib/keys';
 
 const APP_NAME_SUGGESTIONS = [
   'FocusFrame',
@@ -14,22 +15,26 @@ const APP_NAME_SUGGESTIONS = [
 ];
 
 export default function Welcome() {
-  const navigate = useNavigate();
-  const { set: setProfile } = useProfile();
+  const { profile, set: setProfile } = useProfile();
 
   const [step, setStep] = useState<'name' | 'appname'>('name');
   const [userName, setUserName] = useState('');
   const [appName, setAppName] = useState('FocusFrame');
   const [customName, setCustomName] = useState('');
 
-  function handleFinish() {
+  async function handleFinish() {
     const finalAppName = customName.trim() || appName;
-    setProfile((prev) => ({
-      ...prev,
+    const updated = {
+      ...profile,
       userName: userName.trim(),
       appName: finalAppName,
-    }));
-    navigate('/boot', { replace: true });
+    };
+    // Write directly to storage first, then update React state
+    await storageSet(KEYS.PROFILE, updated);
+    setProfile(updated);
+    // Force reload to pick up the new profile cleanly
+    window.location.hash = '#/boot';
+    window.location.reload();
   }
 
   return (
