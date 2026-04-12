@@ -5,20 +5,24 @@ export function useStorage<T>(key: string, defaultValue: T) {
   const [data, setData] = useState<T>(defaultValue);
   const [loading, setLoading] = useState(true);
   const mountedRef = useRef(true);
-
-  const load = useCallback(async () => {
-    const stored = await storageGet<T>(key);
-    if (mountedRef.current) {
-      setData(stored ?? defaultValue);
-      setLoading(false);
-    }
-  }, [key, defaultValue]);
+  const defaultRef = useRef(defaultValue);
 
   useEffect(() => {
     mountedRef.current = true;
-    load();
-    return () => { mountedRef.current = false; };
-  }, [load]);
+    let cancelled = false;
+
+    storageGet<T>(key).then((stored) => {
+      if (!cancelled && mountedRef.current) {
+        setData(stored ?? defaultRef.current);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      mountedRef.current = false;
+    };
+  }, [key]);
 
   const set = useCallback(async (value: T | ((prev: T) => T)) => {
     setData((prev) => {
@@ -28,5 +32,12 @@ export function useStorage<T>(key: string, defaultValue: T) {
     });
   }, [key]);
 
-  return { data, loading, set, refresh: load };
+  const refresh = useCallback(async () => {
+    const stored = await storageGet<T>(key);
+    if (mountedRef.current) {
+      setData(stored ?? defaultRef.current);
+    }
+  }, [key]);
+
+  return { data, loading, set, refresh };
 }
