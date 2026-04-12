@@ -22,6 +22,8 @@ const RoutinesScreen = lazy(() => import('./screens/Routines'));
 const SettingsScreen = lazy(() => import('./screens/Settings'));
 const VegaJrScreen = lazy(() => import('./screens/VegaJr'));
 const ParentConfig = lazy(() => import('./screens/ParentConfig'));
+const Guide = lazy(() => import('./screens/Guide'));
+const CalendarScreen = lazy(() => import('./screens/Calendar'));
 
 function LoadingSpinner() {
   return (
@@ -91,7 +93,7 @@ export function App() {
 
   if (loading) return <LoadingSpinner />;
 
-  const showNav = location.pathname !== '/boot' && location.pathname !== '/welcome';
+  const showNav = location.pathname !== '/boot' && location.pathname !== '/welcome' && location.pathname !== '/guide';
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] pb-20">
@@ -114,6 +116,8 @@ export function App() {
           <Route path="/settings" element={<SettingsScreen />} />
           <Route path="/chat" element={<VegaJrScreen />} />
           <Route path="/parent" element={<ParentConfig />} />
+          <Route path="/guide" element={<Guide />} />
+          <Route path="/calendar" element={<CalendarScreen />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>

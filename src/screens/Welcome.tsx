@@ -32,8 +32,8 @@ export default function Welcome() {
     // Write directly to storage first, then update React state
     await storageSet(KEYS.PROFILE, updated);
     setProfile(updated);
-    // Force reload to pick up the new profile cleanly
-    window.location.hash = '#/boot';
+    // Go to the guide first, then boot
+    window.location.hash = '#/guide';
     window.location.reload();
   }
 
