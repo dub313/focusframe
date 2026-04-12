@@ -19,6 +19,7 @@ const VaultScreen = lazy(() => import('./screens/Vault'));
 const MoodCheckin = lazy(() => import('./screens/MoodCheckin'));
 const RoutinesScreen = lazy(() => import('./screens/Routines'));
 const SettingsScreen = lazy(() => import('./screens/Settings'));
+const VegaJrScreen = lazy(() => import('./screens/VegaJr'));
 
 function LoadingSpinner() {
   return (
@@ -93,6 +94,7 @@ export function App() {
           <Route path="/mood" element={<MoodCheckin />} />
           <Route path="/routines" element={<RoutinesScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />
+          <Route path="/chat" element={<VegaJrScreen />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
