@@ -29,6 +29,9 @@ export interface Task {
   priority?: 'high' | 'medium' | 'low';
   isTopThree?: boolean;
   surgeIndex?: number; // which surge task (4, 5, 6...)
+  // completion tracking — stores exact values for clean undo
+  earnedXP?: number; // exact XP earned including all multipliers
+  xpAction?: 'banked' | 'burned'; // what the user chose for this XP
 }
 
 // === Mood ===

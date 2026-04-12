@@ -44,7 +44,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { state, setState, useBattery, addXP: addDailyXP, addRecovery, activateSurge, incrementSurge, setTopThreeComplete } = useDailyState();
   const { profile, addXP: addProfileXP, incrementTasksCompleted } = useProfile();
-  const { bankXP, burnXP } = useVault();
+  const { bankXP, burnXP, redeemVault, spendBurn } = useVault();
 
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [xpBurst, setXpBurst] = useState<{ amount: number; id: string } | null>(null);
@@ -52,6 +52,7 @@ export default function Dashboard() {
   const [showSurgePrompt, setShowSurgePrompt] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
   const [bankBurnXP, setBankBurnXP] = useState<number | null>(null);
+  const [bankBurnTaskId, setBankBurnTaskId] = useState<string | null>(null);
 
   const topThree = state.tasks.filter((t) => t.isTopThree && !t.completed);
   const otherTasks = state.tasks.filter((t) => !t.isTopThree && !t.completed);
@@ -69,10 +70,11 @@ export default function Dashboard() {
       setCompletingTaskId(null);
       setXpBurst({ amount: xp, id: crypto.randomUUID() });
       setBankBurnXP(xp);
+      setBankBurnTaskId(task.id);
 
-      // Update task
+      // Store exact earned XP on the task for clean undo
       const updatedTasks = state.tasks.map((t) =>
-        t.id === task.id ? { ...t, completed: true, completedAt: new Date().toISOString() } : t
+        t.id === task.id ? { ...t, completed: true, completedAt: new Date().toISOString(), earnedXP: xp } : t
       );
       setState((prev) => ({ ...prev, tasks: updatedTasks }));
 
@@ -98,11 +100,22 @@ export default function Dashboard() {
 
   const uncompleteTask = useCallback((task: Task) => {
     const cost = getEnergyCost(task.type);
-    const xp = getBaseXP(task.type);
+    // Use the EXACT XP that was earned (includes multipliers), not base
+    const xp = task.earnedXP ?? getBaseXP(task.type);
 
-    // Mark task incomplete
+    // Reverse vault/burn if it was banked or burned
+    if (task.xpAction === 'banked') {
+      // Remove the most recent deposit of this amount from vault
+      redeemVault(xp);
+    } else if (task.xpAction === 'burned') {
+      spendBurn(xp);
+    }
+
+    // Mark task fully incomplete — clear all completion data
     const updatedTasks = state.tasks.map((t) =>
-      t.id === task.id ? { ...t, completed: false, completedAt: undefined } : t
+      t.id === task.id
+        ? { ...t, completed: false, completedAt: undefined, earnedXP: undefined, xpAction: undefined }
+        : t
     );
     setState((prev) => ({
       ...prev,
@@ -111,9 +124,9 @@ export default function Dashboard() {
       xpEarnedToday: Math.max(0, prev.xpEarnedToday - xp),
       topThreeComplete: false,
     }));
-    // Remove XP from profile total
+    // Remove exact XP from profile total
     addProfileXP(-xp);
-  }, [state.tasks, setState, addProfileXP]);
+  }, [state.tasks, setState, addProfileXP, redeemVault, spendBurn]);
 
   const handleRecovery = useCallback((action: RecoveryAction) => {
     if (state.recoveryUsed >= MAX_RECOVERY_PER_DAY) return;
@@ -135,8 +148,29 @@ export default function Dashboard() {
       <BankBurnChoice
         open={bankBurnXP !== null}
         amount={bankBurnXP ?? 0}
-        onBank={() => { bankXP(bankBurnXP!); setBankBurnXP(null); }}
-        onBurn={() => { burnXP(bankBurnXP!); setBankBurnXP(null); }}
+        onBank={() => {
+          bankXP(bankBurnXP!);
+          // Record the choice on the task for clean undo
+          if (bankBurnTaskId) {
+            setState((prev) => ({
+              ...prev,
+              tasks: prev.tasks.map((t) => t.id === bankBurnTaskId ? { ...t, xpAction: 'banked' as const } : t),
+            }));
+          }
+          setBankBurnXP(null);
+          setBankBurnTaskId(null);
+        }}
+        onBurn={() => {
+          burnXP(bankBurnXP!);
+          if (bankBurnTaskId) {
+            setState((prev) => ({
+              ...prev,
+              tasks: prev.tasks.map((t) => t.id === bankBurnTaskId ? { ...t, xpAction: 'burned' as const } : t),
+            }));
+          }
+          setBankBurnXP(null);
+          setBankBurnTaskId(null);
+        }}
       />
 
       {/* Header */}
