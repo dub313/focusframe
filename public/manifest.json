@@ -2,24 +2,25 @@
   "name": "FocusFrame",
   "short_name": "Focus",
   "description": "Adaptive ADHD support for teen athletes",
-  "start_url": "/",
+  "start_url": "/focusframe/",
+  "scope": "/focusframe/",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#0a0a0f",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/icons/icon-192.png",
+      "src": "/focusframe/icons/icon-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/focusframe/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     },
     {
-      "src": "/icons/icon-512.png",
+      "src": "/focusframe/icons/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
