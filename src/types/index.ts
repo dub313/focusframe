@@ -102,6 +102,8 @@ export interface PersonalRecords {
 }
 
 export interface Profile {
+  userName?: string;
+  appName?: string; // custom app name, defaults to "FocusFrame"
   totalXP: number;
   currentStreak: number;
   lastStreakDate?: string;

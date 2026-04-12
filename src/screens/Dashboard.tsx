@@ -123,7 +123,9 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
+          <p className="text-xs text-[#555570]">{profile.appName || 'FocusFrame'}</p>
           <h1 className="text-xl font-bold">
+            {profile.userName ? `${profile.userName}'s ` : ''}
             {profile.currentStreak > 0 ? `Day ${profile.currentStreak}` : new Date().toLocaleDateString('en-US', { weekday: 'long' })}
           </h1>
           {profile.currentStreak >= 3 && (

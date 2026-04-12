@@ -27,7 +27,7 @@ const TRAINING_OPTIONS: { type: TrainingType; emoji: string; label: string }[] =
 export default function BootSequence() {
   const navigate = useNavigate();
   const { completeBoot, state } = useDailyState();
-  const { addXP } = useProfile();
+  const { addXP, profile } = useProfile();
 
   const [step, setStep] = useState(1);
   const [energy, setEnergy] = useState(3);
@@ -74,7 +74,9 @@ export default function BootSequence() {
       {/* Step 1: Energy */}
       {step === 1 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-slide-up">
-          <h1 className="text-2xl font-bold">How are you feeling?</h1>
+          <h1 className="text-2xl font-bold">
+            {profile.userName ? `Hey ${profile.userName}, how` : 'How'} are you feeling?
+          </h1>
           <div className="relative w-full max-w-xs">
             {/* Battery visual */}
             <div className="mx-auto w-24 h-40 rounded-xl border-3 border-[#2a2a3a] bg-[#111118] relative overflow-hidden mb-6">

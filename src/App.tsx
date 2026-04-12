@@ -9,6 +9,7 @@ import { KEYS } from './lib/keys';
 import { isDayTransition, getToday, createFreshState, rolloverState } from './lib/day';
 import type { DailySummary } from './types';
 
+const Welcome = lazy(() => import('./screens/Welcome'));
 const BootSequence = lazy(() => import('./screens/BootSequence'));
 const Dashboard = lazy(() => import('./screens/Dashboard'));
 const AddTask = lazy(() => import('./screens/AddTask'));
@@ -39,10 +40,17 @@ export function App() {
   const navigate = useNavigate();
 
   const loading = stateLoading || profileLoading || vaultLoading || historyLoading;
+  const needsWelcome = !loading && !profile.userName;
+  const appName = profile.appName || 'FocusFrame';
+
+  // Update document title with custom app name
+  useEffect(() => {
+    document.title = appName;
+  }, [appName]);
 
   // Day transition check on mount and visibility change
   useEffect(() => {
-    if (loading) return;
+    if (loading || needsWelcome) return;
 
     function checkDayTransition() {
       if (isDayTransition(state.date)) {
@@ -67,26 +75,35 @@ export function App() {
     };
     document.addEventListener('visibilitychange', handleVisibility);
     return () => document.removeEventListener('visibilitychange', handleVisibility);
-  }, [loading, state, profile, vault, history, setState, setProfile, setVault, setHistory]);
+  }, [loading, needsWelcome, state, profile, vault, history, setState, setProfile, setVault, setHistory]);
 
-  // Redirect to boot if not done today
+  // Redirect logic: welcome → boot → dashboard
   useEffect(() => {
     if (loading) return;
-    if (!state.bootDone && location.pathname !== '/boot') {
+    const path = location.pathname;
+
+    if (needsWelcome && path !== '/welcome') {
+      navigate('/welcome', { replace: true });
+    } else if (!needsWelcome && !state.bootDone && path !== '/boot' && path !== '/welcome') {
       navigate('/boot', { replace: true });
     }
-  }, [loading, state.bootDone, location.pathname, navigate]);
+  }, [loading, needsWelcome, state.bootDone, location.pathname, navigate]);
 
   if (loading) return <LoadingSpinner />;
 
-  const showNav = location.pathname !== '/boot';
+  const showNav = location.pathname !== '/boot' && location.pathname !== '/welcome';
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] pb-20">
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
-          <Route path="/boot" element={<BootSequence />} />
-          <Route path="/" element={state.bootDone ? <Dashboard /> : <Navigate to="/boot" replace />} />
+          <Route path="/welcome" element={<Welcome />} />
+          <Route path="/boot" element={needsWelcome ? <Navigate to="/welcome" replace /> : <BootSequence />} />
+          <Route path="/" element={
+            needsWelcome ? <Navigate to="/welcome" replace /> :
+            state.bootDone ? <Dashboard /> :
+            <Navigate to="/boot" replace />
+          } />
           <Route path="/add-task" element={<AddTask />} />
           <Route path="/focus" element={<FocusMode />} />
           <Route path="/growth" element={<GrowthMap />} />
