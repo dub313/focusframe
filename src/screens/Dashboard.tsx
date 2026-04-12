@@ -96,6 +96,23 @@ export default function Dashboard() {
     }, 500);
   }, [state, profile, setState, useBattery, addDailyXP, addProfileXP, incrementTasksCompleted, incrementSurge, setTopThreeComplete]);
 
+  const uncompleteTask = useCallback((task: Task) => {
+    const cost = getEnergyCost(task.type);
+    const xp = getBaseXP(task.type);
+
+    // Mark task incomplete
+    const updatedTasks = state.tasks.map((t) =>
+      t.id === task.id ? { ...t, completed: false, completedAt: undefined } : t
+    );
+    setState((prev) => ({
+      ...prev,
+      tasks: updatedTasks,
+      batteryUsed: Math.max(0, prev.batteryUsed - cost),
+      xpEarnedToday: Math.max(0, prev.xpEarnedToday - xp),
+      topThreeComplete: false,
+    }));
+  }, [state.tasks, setState]);
+
   const handleRecovery = useCallback((action: RecoveryAction) => {
     if (state.recoveryUsed >= MAX_RECOVERY_PER_DAY) return;
     const bars = getRecoveryBars(action);
@@ -246,7 +263,12 @@ export default function Dashboard() {
                   {TASK_ICONS[task.type]}
                 </div>
                 <p className="flex-1 font-medium line-through text-[#555570]">{task.name}</p>
-                <span className="text-[#10b981]">✓</span>
+                <button
+                  className="text-xs text-[#8888a0] hover:text-[#f43f5e] px-2 py-1 rounded-lg border border-transparent hover:border-[#2a2a3a] transition-all"
+                  onClick={() => uncompleteTask(task)}
+                >
+                  Undo
+                </button>
               </Card>
             ))}
           </div>
