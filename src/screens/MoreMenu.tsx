@@ -6,6 +6,7 @@ const MENU_ITEMS = [
   { path: '/chat', emoji: '🤖', label: 'Vega Jr.', desc: 'AI coach — get unstuck' },
   { path: '/mood', emoji: '😊', label: 'Mood Check', desc: 'Track how you feel' },
   { path: '/routines', emoji: '📝', label: 'Routines', desc: 'Morning & evening' },
+  { path: '/parent', emoji: '🔐', label: 'Parent Config', desc: 'Rewards & settings (PIN)' },
   { path: '/settings', emoji: '⚙️', label: 'Settings', desc: 'App preferences' },
 ];
 

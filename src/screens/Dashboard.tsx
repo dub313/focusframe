@@ -7,8 +7,10 @@ import { BatteryGauge } from '../components/battery/BatteryGauge';
 import { XPBurst } from '../components/animations/XPBurst';
 import { TaskComplete } from '../components/animations/TaskComplete';
 import { ConfettiRain } from '../components/animations/ConfettiRain';
+import { BankBurnChoice } from '../components/vault/BankBurnChoice';
 import { useDailyState } from '../hooks/useDailyState';
 import { useProfile } from '../hooks/useProfile';
+import { useVault } from '../hooks/useVault';
 import { getStreakMultiplier } from '../lib/streaks';
 import { getEnergyCost } from '../lib/battery';
 import { calculateXP, getBaseXP, RECOVERY_XP } from '../lib/xp';
@@ -42,12 +44,14 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { state, setState, useBattery, addXP: addDailyXP, addRecovery, activateSurge, incrementSurge, setTopThreeComplete } = useDailyState();
   const { profile, addXP: addProfileXP, incrementTasksCompleted } = useProfile();
+  const { bankXP, burnXP } = useVault();
 
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [xpBurst, setXpBurst] = useState<{ amount: number; id: string } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showSurgePrompt, setShowSurgePrompt] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
+  const [bankBurnXP, setBankBurnXP] = useState<number | null>(null);
 
   const topThree = state.tasks.filter((t) => t.isTopThree && !t.completed);
   const otherTasks = state.tasks.filter((t) => !t.isTopThree && !t.completed);
@@ -64,6 +68,7 @@ export default function Dashboard() {
     setTimeout(() => {
       setCompletingTaskId(null);
       setXpBurst({ amount: xp, id: crypto.randomUUID() });
+      setBankBurnXP(xp);
 
       // Update task
       const updatedTasks = state.tasks.map((t) =>
@@ -108,6 +113,12 @@ export default function Dashboard() {
       {/* Animations */}
       {showConfetti && <ConfettiRain onDone={() => setShowConfetti(false)} />}
       {xpBurst && <XPBurst key={xpBurst.id} amount={xpBurst.amount} />}
+      <BankBurnChoice
+        open={bankBurnXP !== null}
+        amount={bankBurnXP ?? 0}
+        onBank={() => { bankXP(bankBurnXP!); setBankBurnXP(null); }}
+        onBurn={() => { burnXP(bankBurnXP!); setBankBurnXP(null); }}
+      />
 
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
