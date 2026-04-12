@@ -1,0 +1,12 @@
+<!doctype html>
+<html>
+  <head>
+    <script>
+      // Redirect all 404s to index for SPA routing
+      window.location.replace(
+        window.location.origin + '/focusframe/' + '#/' +
+        window.location.pathname.replace('/focusframe/', '')
+      );
+    </script>
+  </head>
+</html>
