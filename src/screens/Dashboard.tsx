@@ -111,7 +111,9 @@ export default function Dashboard() {
       xpEarnedToday: Math.max(0, prev.xpEarnedToday - xp),
       topThreeComplete: false,
     }));
-  }, [state.tasks, setState]);
+    // Remove XP from profile total
+    addProfileXP(-xp);
+  }, [state.tasks, setState, addProfileXP]);
 
   const handleRecovery = useCallback((action: RecoveryAction) => {
     if (state.recoveryUsed >= MAX_RECOVERY_PER_DAY) return;

@@ -10,7 +10,7 @@ export function useProfile() {
   const { data: profile, loading, set, refresh } = useStorage<Profile>(KEYS.PROFILE, DEFAULT_PROFILE);
 
   const addXP = useCallback((amount: number) => {
-    set((prev) => ({ ...prev, totalXP: prev.totalXP + amount }));
+    set((prev) => ({ ...prev, totalXP: Math.max(0, prev.totalXP + amount) }));
   }, [set]);
 
   const incrementTasksCompleted = useCallback(() => {
