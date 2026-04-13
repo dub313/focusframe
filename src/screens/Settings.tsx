@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Card } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { useProfile } from '../hooks/useProfile';
 import { useStorage } from '../hooks/useStorage';
+import { useFamily } from '../hooks/useFamily';
 import { KEYS } from '../lib/keys';
 import type { AppSettings } from '../types';
 
@@ -17,11 +19,14 @@ const DEFAULT_SETTINGS: AppSettings = {
 export default function SettingsScreen() {
   const { profile, set: setProfile } = useProfile();
   const { data: settings, set: setSettings } = useStorage<AppSettings>(KEYS.SETTINGS, DEFAULT_SETTINGS);
+  const { familyCode, connected: familyConnected, connect: connectFamily, disconnect: disconnectFamily } = useFamily();
   const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey ?? '');
   const [saved, setSaved] = useState(false);
   const [nameEdit, setNameEdit] = useState(false);
   const [userName, setUserName] = useState(profile.userName ?? '');
   const [appName, setAppName] = useState(profile.appName ?? 'FocusFrame');
+  const [familyCodeInput, setFamilyCodeInput] = useState('');
+  const [familyError, setFamilyError] = useState('');
 
   function saveApiKey() {
     setSettings((prev) => ({ ...prev, apiKey: apiKeyInput.trim() || undefined }));
@@ -166,11 +171,43 @@ export default function SettingsScreen() {
       </Card>
 
       <Card className="mb-4">
-        <h2 className="text-sm font-semibold text-[#8888a0] mb-3">Parent Config</h2>
-        <p className="text-sm text-[#555570]">PIN-protected reward management and schedule overrides.</p>
-        <Button variant="secondary" size="sm" className="mt-3" disabled>
-          Coming Soon
-        </Button>
+        <h2 className="text-sm font-semibold text-[#8888a0] mb-3">Family Link</h2>
+        {familyConnected ? (
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-sm">Connected:</span>
+              <Badge color="#10b981">{familyCode}</Badge>
+            </div>
+            <p className="text-xs text-[#555570] mb-2">
+              Your parent can see your tasks, XP, and streaks. They cannot see your mood, notes, or chats.
+            </p>
+            <Button variant="ghost" size="sm" onClick={disconnectFamily}>Disconnect</Button>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs text-[#555570] mb-3">
+              Enter the family code your parent gave you to link your accounts.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="e.g. MASON-2026"
+                value={familyCodeInput}
+                onChange={(e) => { setFamilyCodeInput(e.target.value.toUpperCase()); setFamilyError(''); }}
+                className="flex-1 bg-[#0a0a0f] border border-[#2a2a3a] rounded-lg px-3 py-2 text-white font-mono text-sm
+                  placeholder:text-[#555570] focus:border-[#22d3ee] focus:outline-none uppercase"
+              />
+              <Button size="sm" onClick={async () => {
+                if (!familyCodeInput.trim()) return;
+                const ok = await connectFamily(familyCodeInput);
+                if (!ok) setFamilyError('Code not found. Ask your parent to set it up first.');
+              }}>
+                Link
+              </Button>
+            </div>
+            {familyError && <p className="text-xs text-[#f43f5e] mt-2">{familyError}</p>}
+          </div>
+        )}
       </Card>
 
       <Card>
