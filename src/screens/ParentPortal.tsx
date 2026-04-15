@@ -89,6 +89,7 @@ export default function ParentPortal() {
 
   // Reward form
   const [showAddReward, setShowAddReward] = useState<RewardCategory | null>(null);
+  const [editingRewardId, setEditingRewardId] = useState<string | null>(null);
   const [rewardName, setRewardName] = useState('');
   const [rewardDesc, setRewardDesc] = useState('');
   const [rewardCost, setRewardCost] = useState('');
@@ -221,22 +222,44 @@ export default function ParentPortal() {
   }
 
   // Reward CRUD
-  async function handleAddReward() {
-    if (!rewardName.trim() || !rewardCost || !showAddReward) return;
-    const reward: SharedReward = {
-      id: crypto.randomUUID(),
-      name: rewardName.trim(),
-      description: rewardDesc.trim() || undefined,
-      category: showAddReward,
-      xpCost: parseInt(rewardCost) || 100,
-      active: true,
-      createdAt: new Date().toISOString(),
-    };
-    await pushReward(savedCode, reward);
+  function resetRewardForm() {
     setRewardName('');
     setRewardDesc('');
     setRewardCost('');
     setShowAddReward(null);
+    setEditingRewardId(null);
+  }
+
+  async function handleSaveReward() {
+    if (!rewardName.trim() || !rewardCost || !showAddReward) return;
+    if (editingRewardId) {
+      await updateReward(savedCode, editingRewardId, {
+        name: rewardName.trim(),
+        description: rewardDesc.trim() || undefined,
+        category: showAddReward,
+        xpCost: parseInt(rewardCost) || 100,
+      });
+    } else {
+      const reward: SharedReward = {
+        id: crypto.randomUUID(),
+        name: rewardName.trim(),
+        description: rewardDesc.trim() || undefined,
+        category: showAddReward,
+        xpCost: parseInt(rewardCost) || 100,
+        active: true,
+        createdAt: new Date().toISOString(),
+      };
+      await pushReward(savedCode, reward);
+    }
+    resetRewardForm();
+  }
+
+  function startEditReward(r: SharedReward) {
+    setEditingRewardId(r.id);
+    setRewardName(r.name);
+    setRewardDesc(r.description ?? '');
+    setRewardCost(String(r.xpCost));
+    setShowAddReward(r.category);
   }
 
   async function seedPresets() {
@@ -647,6 +670,12 @@ export default function ParentPortal() {
                     </div>
                     <div className="flex gap-2">
                       <button
+                        className="text-[10px] text-[#22d3ee] hover:underline"
+                        onClick={() => startEditReward(r)}
+                      >
+                        Edit
+                      </button>
+                      <button
                         className="text-[10px] text-[#8888a0] hover:text-[#22d3ee]"
                         onClick={() => toggleReward(r)}
                       >
@@ -822,11 +851,13 @@ export default function ParentPortal() {
         </div>
       )}
 
-      {/* === Add Reward Modal === */}
+      {/* === Add/Edit Reward Modal === */}
       {showAddReward && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md mx-4 mb-4 bg-[#111118] border border-[#2a2a3a] rounded-2xl p-6 animate-slide-up">
-            <h2 className="text-lg font-bold mb-1">Add {CATEGORY_LABEL[showAddReward]} Reward</h2>
+            <h2 className="text-lg font-bold mb-1">
+              {editingRewardId ? 'Edit' : 'Add'} {CATEGORY_LABEL[showAddReward]} Reward
+            </h2>
             <p className="text-[10px] text-[#555570] mb-4">
               {CATEGORY_XP_RANGE[showAddReward].min}–{CATEGORY_XP_RANGE[showAddReward].max} XP · {CATEGORY_XP_RANGE[showAddReward].label}
             </p>
@@ -855,9 +886,25 @@ export default function ParentPortal() {
               className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-xl px-4 py-3 text-white
                 placeholder:text-[#555570] focus:border-[#22d3ee] focus:outline-none mb-4 font-mono"
             />
+            {editingRewardId && (
+              <div className="flex gap-1 mb-4">
+                {(['minor', 'medium', 'major'] as RewardCategory[]).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => setShowAddReward(c)}
+                    className={`flex-1 py-1.5 rounded text-[10px] uppercase transition-all
+                      ${showAddReward === c ? 'bg-[#22d3ee]/10 text-[#22d3ee] border border-[#22d3ee]' : 'border border-[#2a2a3a] text-[#8888a0]'}`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="flex gap-3">
-              <Button variant="secondary" className="flex-1" onClick={() => { setShowAddReward(null); setRewardName(''); setRewardDesc(''); setRewardCost(''); }}>Cancel</Button>
-              <Button className="flex-1" disabled={!rewardName.trim() || !rewardCost} onClick={handleAddReward}>Add</Button>
+              <Button variant="secondary" className="flex-1" onClick={resetRewardForm}>Cancel</Button>
+              <Button className="flex-1" disabled={!rewardName.trim() || !rewardCost} onClick={handleSaveReward}>
+                {editingRewardId ? 'Save' : 'Add'}
+              </Button>
             </div>
           </div>
         </div>

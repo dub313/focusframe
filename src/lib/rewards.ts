@@ -3,9 +3,9 @@ import { getDepositTier, getTierMultiplier } from './vault';
 
 // XP anchors by category (tunable guidance shown in the Add Reward modal)
 export const CATEGORY_XP_RANGE: Record<RewardCategory, { min: number; max: number; label: string }> = {
-  minor: { min: 100, max: 200, label: '1–2 days of stacking' },
-  medium: { min: 500, max: 1000, label: '5–7 days of stacking' },
-  major: { min: 2000, max: 5000, label: '2+ weeks of stacking' },
+  minor: { min: 0, max: 500, label: 'small stuff' },
+  medium: { min: 500, max: 2000, label: 'weekly wins' },
+  major: { min: 2000, max: 5000, label: 'big-ticket goals' },
 };
 
 export const CATEGORY_LABEL: Record<RewardCategory, string> = {
