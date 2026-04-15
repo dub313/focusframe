@@ -24,6 +24,7 @@ const VegaJrScreen = lazy(() => import('./screens/VegaJr'));
 const Guide = lazy(() => import('./screens/Guide'));
 const CalendarScreen = lazy(() => import('./screens/Calendar'));
 const ParentPortal = lazy(() => import('./screens/ParentPortal'));
+const RewardsScreen = lazy(() => import('./screens/Rewards'));
 
 function LoadingSpinner() {
   return (
@@ -111,6 +112,7 @@ export function App() {
           <Route path="/growth" element={<GrowthMap />} />
           <Route path="/more" element={<MoreMenu />} />
           <Route path="/vault" element={<VaultScreen />} />
+          <Route path="/rewards" element={<RewardsScreen />} />
           <Route path="/mood" element={<MoodCheckin />} />
           <Route path="/routines" element={<RoutinesScreen />} />
           <Route path="/settings" element={<SettingsScreen />} />

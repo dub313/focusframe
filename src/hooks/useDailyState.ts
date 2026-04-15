@@ -21,11 +21,12 @@ export function useDailyState() {
     set((prev) => ({ ...prev, mood }));
   }, [set]);
 
-  const completeBoot = useCallback((energy: number, training: TrainingInfo, mood: MoodEntry, batteryMax: number) => {
+  const completeBoot = useCallback((energy: number, training: TrainingInfo, mood: MoodEntry, batteryMax: number, sleepHours: number) => {
     set((prev) => ({
       ...prev,
       bootDone: true,
       energy,
+      sleepHours,
       training,
       mood,
       batteryMax,

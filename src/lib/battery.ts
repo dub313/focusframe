@@ -12,9 +12,29 @@ export function getEnergyCost(type: TaskType): number {
   return ENERGY_COST[type];
 }
 
-export function calculateBatteryMax(energy: number, training: TrainingType): number {
+// Sleep multiplier: anchors are 8h=1.0, 6h=0.9, 4h=0.6, <4h=0.4 floor.
+// Athletic teens recover hard — 8+ hours restores full capacity.
+export function getSleepMultiplier(hours: number | undefined): number {
+  if (hours == null) return 1; // no data → assume rested
+  if (hours >= 8) return 1;
+  if (hours >= 6) return 0.9 + (hours - 6) * 0.05;   // 6→0.90, 7→0.95, 8→1.00
+  if (hours >= 4) return 0.6 + (hours - 4) * 0.15;   // 4→0.60, 5→0.75, 6→0.90
+  return 0.4;
+}
+
+// Battery capacity tuned for a fit 15yo athlete. Base `energy*2 + 2` gives
+// 4–12 bars before training reserve, then sleep scales the whole thing.
+// Floor of 2 so even the worst day leaves room for quick wins.
+export function calculateBatteryMax(
+  energy: number,
+  training: TrainingType,
+  sleepHours?: number,
+): number {
   const reserve = training === 'both' ? 3 : training === 'rest' ? 0 : 2;
-  return Math.max(1, energy - reserve);
+  const rawMax = energy * 2 + 2;
+  const afterTraining = rawMax - reserve;
+  const scaled = afterTraining * getSleepMultiplier(sleepHours);
+  return Math.max(2, Math.round(scaled));
 }
 
 export function getBatteryRemaining(max: number, used: number): number {

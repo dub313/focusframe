@@ -11,11 +11,12 @@ import { BankBurnChoice } from '../components/vault/BankBurnChoice';
 import { useDailyState } from '../hooks/useDailyState';
 import { useProfile } from '../hooks/useProfile';
 import { useVault } from '../hooks/useVault';
+import { useFamily } from '../hooks/useFamily';
 import { getStreakMultiplier } from '../lib/streaks';
 import { getEnergyCost } from '../lib/battery';
 import { calculateXP, getBaseXP, RECOVERY_XP } from '../lib/xp';
 import { getRecoveryBars, MAX_RECOVERY_PER_DAY, type RecoveryAction } from '../lib/battery';
-import type { Task, TaskType } from '../types';
+import type { Task, TaskType, ParentTask } from '../types';
 
 const TASK_ICONS: Record<TaskType, string> = {
   quick_win: '⚡',
@@ -40,11 +41,40 @@ const RECOVERY_ACTIONS: { action: RecoveryAction; emoji: string; label: string; 
   { action: 'fun', emoji: '🎮', label: 'Fun', detail: '30+ min: +1 bar' },
 ];
 
+// Internal parent-task marker fields on the render-only merged Task shape
+interface ParentTaskOverlay {
+  __parentTaskId?: string;
+  __completionMessage?: string;
+}
+
+type MergedTask = Task & ParentTaskOverlay;
+
+// Map a Firebase ParentTask into a render-only Task with overlay fields.
+// Never persisted to state.tasks — rebuilt every render from useFamily.
+function parentTaskToRenderable(pt: ParentTask, forceTopThree: boolean): MergedTask {
+  const type: TaskType = pt.type;
+  return {
+    id: `parent:${pt.id}`,
+    type,
+    name: pt.name,
+    completed: pt.completed,
+    completedAt: pt.completedAt,
+    createdAt: pt.assignedAt,
+    energyCost: 0, // filled in at use site via getEnergyCost
+    baseXP: 0,     // filled in at use site via getBaseXP
+    subtasks: pt.steps?.map((s, i) => ({ id: `${pt.id}-step-${i}`, name: s, completed: false })),
+    isTopThree: forceTopThree || !!pt.urgent,
+    __parentTaskId: pt.id,
+    __completionMessage: pt.completionMessage,
+  };
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { state, setState, useBattery, addXP: addDailyXP, addRecovery, activateSurge, incrementSurge, setTopThreeComplete } = useDailyState();
   const { profile, addXP: addProfileXP, incrementTasksCompleted } = useProfile();
-  const { bankXP, burnXP, redeemVault, spendBurn } = useVault();
+  const { vault, bankXP, burnXP, redeemVault, spendBurn } = useVault();
+  const { parentTasks, syncProgress, completeParentTask } = useFamily();
 
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
   const [xpBurst, setXpBurst] = useState<{ amount: number; id: string } | null>(null);
@@ -53,17 +83,27 @@ export default function Dashboard() {
   const [showRecovery, setShowRecovery] = useState(false);
   const [bankBurnXP, setBankBurnXP] = useState<number | null>(null);
   const [bankBurnTaskId, setBankBurnTaskId] = useState<string | null>(null);
+  const [parentMessage, setParentMessage] = useState<string | null>(null);
 
-  const topThree = state.tasks.filter((t) => t.isTopThree && !t.completed);
-  const otherTasks = state.tasks.filter((t) => !t.isTopThree && !t.completed);
-  const completedTasks = state.tasks.filter((t) => t.completed);
+  // Merge parent-assigned tasks into the render list. Non-urgent parent tasks
+  // drop into "Other" just like tasks the kid created himself. Urgent ones
+  // force-pin to Top 3 regardless of existing slot count.
+  const mergedParentTasks: MergedTask[] = parentTasks.map((pt) =>
+    parentTaskToRenderable(pt, !!pt.urgent),
+  );
+  const allTasks: MergedTask[] = [...state.tasks, ...mergedParentTasks];
+
+  const topThree = allTasks.filter((t) => t.isTopThree && !t.completed);
+  const otherTasks = allTasks.filter((t) => !t.isTopThree && !t.completed);
+  const completedTasks = allTasks.filter((t) => t.completed);
   const batteryRemaining = Math.max(0, state.batteryMax - state.batteryUsed);
   const isBurnout = batteryRemaining === 0;
 
-  const completeTask = useCallback((task: Task) => {
+  const completeTask = useCallback((task: MergedTask) => {
     const cost = getEnergyCost(task.type);
     const surgeIndex = state.surgeActive ? state.surgeTaskCount + 1 : 0;
     const xp = calculateXP(getBaseXP(task.type), profile.currentStreak, surgeIndex);
+    const isParentTask = !!task.__parentTaskId;
 
     setCompletingTaskId(task.id);
     setTimeout(() => {
@@ -72,11 +112,19 @@ export default function Dashboard() {
       setBankBurnXP(xp);
       setBankBurnTaskId(task.id);
 
-      // Store exact earned XP on the task for clean undo
-      const updatedTasks = state.tasks.map((t) =>
-        t.id === task.id ? { ...t, completed: true, completedAt: new Date().toISOString(), earnedXP: xp } : t
-      );
-      setState((prev) => ({ ...prev, tasks: updatedTasks }));
+      if (isParentTask) {
+        // Parent tasks live in Firebase — mark complete there and show completion message
+        completeParentTask(task.__parentTaskId!);
+        if (task.__completionMessage) {
+          setTimeout(() => setParentMessage(task.__completionMessage!), 600);
+        }
+      } else {
+        // Store exact earned XP on the task for clean undo
+        const updatedTasks = state.tasks.map((t) =>
+          t.id === task.id ? { ...t, completed: true, completedAt: new Date().toISOString(), earnedXP: xp } : t
+        );
+        setState((prev) => ({ ...prev, tasks: updatedTasks }));
+      }
 
       useBattery(cost);
       addDailyXP(xp);
@@ -87,18 +135,46 @@ export default function Dashboard() {
         incrementSurge();
       }
 
-      // Check top 3 completion
-      const topThreeAfter = updatedTasks.filter((t) => t.isTopThree);
+      // Check top 3 completion (against merged list, including parent tasks)
+      const ownUpdated = isParentTask
+        ? state.tasks
+        : state.tasks.map((t) => (t.id === task.id ? { ...t, completed: true } : t));
+      const mergedForCheck: MergedTask[] = [
+        ...ownUpdated,
+        ...parentTasks.map((pt) => {
+          const base = parentTaskToRenderable(pt, !!pt.urgent);
+          if (isParentTask && pt.id === task.__parentTaskId) {
+            return { ...base, completed: true };
+          }
+          return base;
+        }),
+      ];
+      const topThreeAfter = mergedForCheck.filter((t) => t.isTopThree);
       const allTopDone = topThreeAfter.length > 0 && topThreeAfter.every((t) => t.completed);
       if (allTopDone && !state.topThreeComplete) {
         setTopThreeComplete();
         setShowConfetti(true);
         setTimeout(() => setShowSurgePrompt(true), 1500);
       }
-    }, 500);
-  }, [state, profile, setState, useBattery, addDailyXP, addProfileXP, incrementTasksCompleted, incrementSurge, setTopThreeComplete]);
 
-  const uncompleteTask = useCallback((task: Task) => {
+      // Push update to parent portal
+      syncProgress(
+        {
+          ...state,
+          tasks: ownUpdated,
+          batteryUsed: state.batteryUsed + cost,
+          xpEarnedToday: state.xpEarnedToday + xp,
+        },
+        { ...profile, totalXP: profile.totalXP + xp },
+        vault,
+      );
+    }, 500);
+  }, [state, profile, vault, parentTasks, setState, useBattery, addDailyXP, addProfileXP, incrementTasksCompleted, incrementSurge, setTopThreeComplete, syncProgress, completeParentTask]);
+
+  const uncompleteTask = useCallback((task: MergedTask) => {
+    // Parent tasks are Firebase-authoritative; don't allow undo from the child side.
+    if (task.__parentTaskId) return;
+
     const cost = getEnergyCost(task.type);
     // Use the EXACT XP that was earned (includes multipliers), not base
     const xp = task.earnedXP ?? getBaseXP(task.type);
@@ -126,7 +202,18 @@ export default function Dashboard() {
     }));
     // Remove exact XP from profile total
     addProfileXP(-xp);
-  }, [state.tasks, setState, addProfileXP, redeemVault, spendBurn]);
+
+    syncProgress(
+      {
+        ...state,
+        tasks: updatedTasks,
+        batteryUsed: Math.max(0, state.batteryUsed - cost),
+        xpEarnedToday: Math.max(0, state.xpEarnedToday - xp),
+      },
+      { ...profile, totalXP: profile.totalXP - xp },
+      vault,
+    );
+  }, [state, profile, vault, setState, addProfileXP, redeemVault, spendBurn, syncProgress]);
 
   const handleRecovery = useCallback((action: RecoveryAction) => {
     if (state.recoveryUsed >= MAX_RECOVERY_PER_DAY) return;
@@ -136,7 +223,18 @@ export default function Dashboard() {
     addDailyXP(xp);
     addProfileXP(xp);
     setXpBurst({ amount: xp, id: crypto.randomUUID() });
-  }, [state.recoveryUsed, addRecovery, addDailyXP, addProfileXP]);
+
+    syncProgress(
+      {
+        ...state,
+        batteryUsed: Math.max(0, state.batteryUsed - bars),
+        recoveryUsed: state.recoveryUsed + 1,
+        xpEarnedToday: state.xpEarnedToday + xp,
+      },
+      { ...profile, totalXP: profile.totalXP + xp },
+      vault,
+    );
+  }, [state, profile, vault, addRecovery, addDailyXP, addProfileXP, syncProgress]);
 
   const streakMult = getStreakMultiplier(profile.currentStreak);
 
@@ -145,6 +243,20 @@ export default function Dashboard() {
       {/* Animations */}
       {showConfetti && <ConfettiRain onDone={() => setShowConfetti(false)} />}
       {xpBurst && <XPBurst key={xpBurst.id} amount={xpBurst.amount} />}
+
+      {/* Parent completion message */}
+      {parentMessage && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
+          <Card className="mx-6 text-center space-y-4 animate-bounce-in max-w-sm border-[#f59e0b]/40">
+            <p className="text-4xl">💬</p>
+            <p className="text-xs uppercase tracking-wider text-[#f59e0b]">A message from Dad</p>
+            <p className="text-lg text-white leading-snug">{parentMessage}</p>
+            <Button className="w-full" onClick={() => setParentMessage(null)}>
+              Thanks
+            </Button>
+          </Card>
+        </div>
+      )}
       <BankBurnChoice
         open={bankBurnXP !== null}
         amount={bankBurnXP ?? 0}
@@ -298,13 +410,22 @@ export default function Dashboard() {
                 >
                   {TASK_ICONS[task.type]}
                 </div>
-                <p className="flex-1 font-medium line-through text-[#555570]">{task.name}</p>
-                <button
-                  className="text-xs text-[#8888a0] hover:text-[#f43f5e] px-2 py-1 rounded-lg border border-transparent hover:border-[#2a2a3a] transition-all"
-                  onClick={() => uncompleteTask(task)}
-                >
-                  Undo
-                </button>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium line-through text-[#555570] truncate">{task.name}</p>
+                  {task.__parentTaskId && (
+                    <span className="inline-block mt-0.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] border border-[#f59e0b]/30">
+                      from dad
+                    </span>
+                  )}
+                </div>
+                {!task.__parentTaskId && (
+                  <button
+                    className="text-xs text-[#8888a0] hover:text-[#f43f5e] px-2 py-1 rounded-lg border border-transparent hover:border-[#2a2a3a] transition-all"
+                    onClick={() => uncompleteTask(task)}
+                  >
+                    Undo
+                  </button>
+                )}
               </Card>
             ))}
           </div>

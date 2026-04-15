@@ -5,7 +5,6 @@ export const KEYS = {
   HISTORY: 'focusframe:history',
   ROUTINES: 'focusframe:routines',
   CONTINUOUS: 'focusframe:continuous',
-  REWARDS: 'focusframe:rewards',
   SETTINGS: 'focusframe:settings',
   CHAT: 'focusframe:chat',
 } as const;

@@ -4,6 +4,8 @@ import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
 import { useDailyState } from '../hooks/useDailyState';
 import { useProfile } from '../hooks/useProfile';
+import { useVault } from '../hooks/useVault';
+import { useFamily } from '../hooks/useFamily';
 import { calculateBatteryMax } from '../lib/battery';
 import { BOOT_XP } from '../lib/xp';
 import type { MoodLevel, TrainingType, TrainingInfo, MoodEntry } from '../types';
@@ -28,13 +30,18 @@ export default function BootSequence() {
   const navigate = useNavigate();
   const { completeBoot, state } = useDailyState();
   const { addXP, profile } = useProfile();
+  const { vault } = useVault();
+  const { syncProgress } = useFamily();
 
   const [step, setStep] = useState(1);
+  const [sleepHours, setSleepHours] = useState(8);
   const [energy, setEnergy] = useState(3);
   const [trainingType, setTrainingType] = useState<TrainingType>('rest');
   const [trainingTime, setTrainingTime] = useState('16:00');
   const [moodLevel, setMoodLevel] = useState<MoodLevel>(3);
   const [moodNote, setMoodNote] = useState('');
+
+  const batteryMax = calculateBatteryMax(energy, trainingType, sleepHours);
 
   // If already booted today, go to dashboard
   if (state.bootDone) {
@@ -52,17 +59,37 @@ export default function BootSequence() {
       level: moodLevel,
       note: moodNote || undefined,
     };
-    const batteryMax = calculateBatteryMax(energy, trainingType);
-    completeBoot(energy, training, mood, batteryMax);
+    completeBoot(energy, training, mood, batteryMax, sleepHours);
     addXP(BOOT_XP);
+    // Push fresh state to parent portal (fire-and-forget). Build a local copy
+    // because the hook state won't update synchronously.
+    syncProgress(
+      { ...state, bootDone: true, energy, sleepHours, training, mood, batteryMax },
+      profile,
+      vault,
+    );
     navigate('/', { replace: true });
   }
+
+  const sleepLabel =
+    sleepHours >= 8 ? 'Fully charged' :
+    sleepHours >= 7 ? 'Solid rest' :
+    sleepHours >= 6 ? 'Good enough' :
+    sleepHours >= 5 ? 'Running light' :
+    sleepHours >= 4 ? 'Rough night' :
+    'Survival mode';
+  const sleepColor =
+    sleepHours >= 7 ? '#22d3ee' :
+    sleepHours >= 6 ? '#10b981' :
+    sleepHours >= 5 ? '#f59e0b' :
+    sleepHours >= 4 ? '#f97316' :
+    '#f43f5e';
 
   return (
     <div className="min-h-screen flex flex-col px-5 py-8 animate-fade-in">
       {/* Progress bar */}
       <div className="flex gap-1.5 mb-8">
-        {[1, 2, 3, 4].map((s) => (
+        {[1, 2, 3, 4, 5].map((s) => (
           <div
             key={s}
             className="h-1 flex-1 rounded-full transition-all duration-300"
@@ -71,11 +98,53 @@ export default function BootSequence() {
         ))}
       </div>
 
-      {/* Step 1: Energy */}
+      {/* Step 1: Sleep */}
       {step === 1 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-slide-up">
+          <h1 className="text-2xl font-bold text-center">
+            {profile.userName ? `Morning ${profile.userName}.` : 'Morning.'}
+            <br />
+            <span className="text-xl font-medium text-[#8888a0]">How much sleep last night?</span>
+          </h1>
+          <div className="w-full max-w-xs">
+            <div className="text-center mb-6">
+              <div className="font-mono text-6xl font-bold" style={{ color: sleepColor }}>
+                {sleepHours}
+                <span className="text-2xl text-[#8888a0] ml-1">hrs</span>
+              </div>
+              <p className="mt-2 text-lg font-medium" style={{ color: sleepColor }}>
+                {sleepLabel}
+              </p>
+            </div>
+            <input
+              type="range"
+              min={3}
+              max={10}
+              step={0.5}
+              value={sleepHours}
+              onChange={(e) => setSleepHours(Number(e.target.value))}
+              className="w-full accent-[#22d3ee]"
+            />
+            <div className="flex justify-between text-xs text-[#555570] mt-1 font-mono">
+              <span>3</span>
+              <span>6</span>
+              <span>8+</span>
+            </div>
+            <p className="text-xs text-[#555570] text-center mt-4 max-w-xs">
+              Sleep sets your real ceiling. 8+ hours = full battery. Less = less.
+            </p>
+          </div>
+          <Button size="lg" className="w-full max-w-xs" onClick={() => setStep(2)}>
+            Next
+          </Button>
+        </div>
+      )}
+
+      {/* Step 2: Energy */}
+      {step === 2 && (
+        <div className="flex-1 flex flex-col items-center justify-center gap-8 animate-slide-up">
           <h1 className="text-2xl font-bold">
-            {profile.userName ? `Hey ${profile.userName}, how` : 'How'} are you feeling?
+            How does your body feel?
           </h1>
           <div className="relative w-full max-w-xs">
             {/* Battery visual */}
@@ -102,14 +171,15 @@ export default function BootSequence() {
               {ENERGY_LABELS[energy]}
             </p>
           </div>
-          <Button size="lg" className="w-full max-w-xs" onClick={() => setStep(2)}>
-            Next
-          </Button>
+          <div className="flex gap-3 w-full max-w-xs">
+            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(1)}>Back</Button>
+            <Button size="md" className="flex-1" onClick={() => setStep(3)}>Next</Button>
+          </div>
         </div>
       )}
 
-      {/* Step 2: Training */}
-      {step === 2 && (
+      {/* Step 3: Training */}
+      {step === 3 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-6 animate-slide-up">
           <h1 className="text-2xl font-bold">Training today?</h1>
           <div className="grid grid-cols-2 gap-3 w-full max-w-xs">
@@ -140,14 +210,14 @@ export default function BootSequence() {
             <p className="text-[#8888a0] text-sm">Recovery is part of performance 💪</p>
           )}
           <div className="flex gap-3 w-full max-w-xs">
-            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(1)}>Back</Button>
-            <Button size="md" className="flex-1" onClick={() => setStep(3)}>Next</Button>
+            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(2)}>Back</Button>
+            <Button size="md" className="flex-1" onClick={() => setStep(4)}>Next</Button>
           </div>
         </div>
       )}
 
-      {/* Step 3: Mood */}
-      {step === 3 && (
+      {/* Step 4: Mood */}
+      {step === 4 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-6 animate-slide-up">
           <h1 className="text-2xl font-bold">Mood check</h1>
           <div className="flex gap-2">
@@ -173,33 +243,37 @@ export default function BootSequence() {
             className="w-full max-w-xs bg-[#1a1a24] border border-[#2a2a3a] rounded-xl px-4 py-3 text-white placeholder:text-[#555570]"
           />
           <div className="flex gap-3 w-full max-w-xs">
-            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(2)}>Back</Button>
-            <Button size="md" className="flex-1" onClick={() => setStep(4)}>Next</Button>
+            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(3)}>Back</Button>
+            <Button size="md" className="flex-1" onClick={() => setStep(5)}>Next</Button>
           </div>
         </div>
       )}
 
-      {/* Step 4: Day Summary */}
-      {step === 4 && (
+      {/* Step 5: Day Summary */}
+      {step === 5 && (
         <div className="flex-1 flex flex-col items-center justify-center gap-6 animate-slide-up">
           <h1 className="text-2xl font-bold">Here's Your Day</h1>
           <Card className="w-full max-w-xs space-y-4">
             {/* Battery */}
             <div className="flex items-center justify-between">
               <span className="text-[#8888a0]">Battery</span>
-              <div className="flex items-center gap-2">
-                {Array.from({ length: 5 }, (_, i) => (
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(batteryMax, 12) }, (_, i) => (
                   <div
                     key={i}
-                    className="w-3 h-6 rounded-sm"
-                    style={{
-                      background: i < calculateBatteryMax(energy, trainingType)
-                        ? ENERGY_COLORS[energy]
-                        : '#2a2a3a',
-                    }}
+                    className="w-2 h-6 rounded-sm"
+                    style={{ background: ENERGY_COLORS[energy] }}
                   />
                 ))}
+                <span className="ml-2 font-mono text-sm" style={{ color: ENERGY_COLORS[energy] }}>
+                  {batteryMax}
+                </span>
               </div>
+            </div>
+            {/* Sleep */}
+            <div className="flex items-center justify-between">
+              <span className="text-[#8888a0]">Sleep</span>
+              <span className="font-mono" style={{ color: sleepColor }}>{sleepHours} hrs</span>
             </div>
             {/* Training */}
             <div className="flex items-center justify-between">
@@ -219,7 +293,7 @@ export default function BootSequence() {
             <div className="flex items-center justify-between">
               <span className="text-[#8888a0]">Task slots</span>
               <span className="font-mono text-[#22d3ee]">
-                {calculateBatteryMax(energy, trainingType)} available
+                {batteryMax} available
               </span>
             </div>
           </Card>
@@ -229,7 +303,7 @@ export default function BootSequence() {
             </p>
           )}
           <div className="flex gap-3 w-full max-w-xs">
-            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(3)}>Back</Button>
+            <Button variant="secondary" size="md" className="flex-1" onClick={() => setStep(4)}>Back</Button>
             <Button size="lg" className="flex-1" onClick={handleFinish}>
               Let's Go 🚀
             </Button>

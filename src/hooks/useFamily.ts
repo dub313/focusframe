@@ -4,10 +4,9 @@ import {
   pushChildProgress,
   markParentTaskComplete,
   familyExists,
-  type ParentTask,
-  type ChildProgress,
 } from '../lib/firebase';
-import type { DailyState, Profile } from '../types';
+import type { DailyState, Profile, VaultState, ParentTask, ChildProgress } from '../types';
+import { getVaultTotal } from '../lib/vault';
 
 export function useFamily() {
   const [familyCode, setFamilyCode] = useState<string | null>(null);
@@ -23,11 +22,11 @@ export function useFamily() {
     }
   }, []);
 
-  // Subscribe to parent tasks
+  // Subscribe to parent tasks (include completed ones — Dashboard filters)
   useEffect(() => {
     if (!familyCode || !connected) return;
     const unsub = onParentTasks(familyCode, (tasks) => {
-      setParentTasks(tasks.filter((t) => !t.completed));
+      setParentTasks(tasks);
     });
     return unsub;
   }, [familyCode, connected]);
@@ -52,41 +51,58 @@ export function useFamily() {
     setParentTasks([]);
   }, []);
 
-  // Sync progress to parent (call after task completions, boot, etc.)
-  const syncProgress = useCallback(async (state: DailyState, profile: Profile, vaultBalance: number) => {
-    if (!familyCode || !connected) return;
+  // Push full child state to Firebase. Fire-and-forget, silent on error.
+  const syncProgress = useCallback(
+    async (state: DailyState, profile: Profile, vault: VaultState) => {
+      if (!familyCode || !connected) return;
 
-    const progress: ChildProgress = {
-      lastUpdated: new Date().toISOString(),
-      totalXP: profile.totalXP,
-      currentStreak: profile.currentStreak,
-      daysActive: profile.daysActive,
-      totalTasksCompleted: profile.totalTasksCompleted,
-      todayTasksDone: state.tasks.filter((t) => t.completed).length,
-      todayTasksTotal: state.tasks.length,
-      todayEnergy: state.energy,
-      todayTraining: state.training.type,
-      todayXP: state.xpEarnedToday,
-      surgeActive: state.surgeActive,
-      vaultBalance,
-    };
+      const topThreeAll = state.tasks.filter((t) => t.isTopThree);
+      const topThreeDone = topThreeAll.filter((t) => t.completed).length;
 
-    try {
-      await pushChildProgress(familyCode, progress);
-    } catch {
-      // Silently fail — don't break the app if offline
-    }
-  }, [familyCode, connected]);
+      const progress: ChildProgress = {
+        lastUpdated: new Date().toISOString(),
+        bootedAt: state.bootDone ? state.mood?.timestamp : undefined,
+        sleepHours: state.sleepHours,
+        batteryMax: state.batteryMax,
+        batteryUsed: state.batteryUsed,
+        recoveryUsed: state.recoveryUsed,
+        topThreeDone,
+        topThreeTotal: topThreeAll.length,
+        totalXP: profile.totalXP,
+        currentStreak: profile.currentStreak,
+        daysActive: profile.daysActive,
+        totalTasksCompleted: profile.totalTasksCompleted,
+        todayTasksDone: state.tasks.filter((t) => t.completed).length,
+        todayTasksTotal: state.tasks.length,
+        todayEnergy: state.energy,
+        todayTraining: state.training.type,
+        todayXP: state.xpEarnedToday,
+        surgeActive: state.surgeActive,
+        vaultBalance: getVaultTotal(vault.deposits),
+        burnBalance: vault.burnBalance,
+      };
 
-  // Mark a parent-assigned task as complete
-  const completeParentTask = useCallback(async (taskId: string) => {
-    if (!familyCode) return;
-    try {
-      await markParentTaskComplete(familyCode, taskId);
-    } catch {
-      // Silently fail
-    }
-  }, [familyCode]);
+      try {
+        await pushChildProgress(familyCode, progress);
+      } catch {
+        // Silently fail — don't break the app if offline
+      }
+    },
+    [familyCode, connected],
+  );
+
+  // Mark a parent-assigned task as complete (called from Dashboard on task complete)
+  const completeParentTask = useCallback(
+    async (taskId: string) => {
+      if (!familyCode) return;
+      try {
+        await markParentTaskComplete(familyCode, taskId);
+      } catch {
+        // Silently fail
+      }
+    },
+    [familyCode],
+  );
 
   return {
     familyCode,

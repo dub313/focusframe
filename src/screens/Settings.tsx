@@ -5,6 +5,8 @@ import { Badge } from '../components/ui/Badge';
 import { useProfile } from '../hooks/useProfile';
 import { useStorage } from '../hooks/useStorage';
 import { useFamily } from '../hooks/useFamily';
+import { useDailyState } from '../hooks/useDailyState';
+import { useVault } from '../hooks/useVault';
 import { KEYS } from '../lib/keys';
 import type { AppSettings } from '../types';
 
@@ -19,7 +21,9 @@ const DEFAULT_SETTINGS: AppSettings = {
 export default function SettingsScreen() {
   const { profile, set: setProfile } = useProfile();
   const { data: settings, set: setSettings } = useStorage<AppSettings>(KEYS.SETTINGS, DEFAULT_SETTINGS);
-  const { familyCode, connected: familyConnected, connect: connectFamily, disconnect: disconnectFamily } = useFamily();
+  const { familyCode, connected: familyConnected, connect: connectFamily, disconnect: disconnectFamily, syncProgress } = useFamily();
+  const { state: dailyState } = useDailyState();
+  const { vault } = useVault();
   const [apiKeyInput, setApiKeyInput] = useState(settings.apiKey ?? '');
   const [saved, setSaved] = useState(false);
   const [nameEdit, setNameEdit] = useState(false);
@@ -200,7 +204,12 @@ export default function SettingsScreen() {
               <Button size="sm" onClick={async () => {
                 if (!familyCodeInput.trim()) return;
                 const ok = await connectFamily(familyCodeInput);
-                if (!ok) setFamilyError('Code not found. Ask your parent to set it up first.');
+                if (!ok) {
+                  setFamilyError('Code not found. Ask your parent to set it up first.');
+                } else {
+                  // Push initial state so the parent portal sees something immediately
+                  syncProgress(dailyState, profile, vault);
+                }
               }}>
                 Link
               </Button>

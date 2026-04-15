@@ -60,6 +60,7 @@ export interface DailyState {
   date: string; // YYYY-MM-DD
   bootDone: boolean;
   energy: number; // 1-5
+  sleepHours?: number; // hours slept last night, anchors battery capacity
   training: TrainingInfo;
   mood: MoodEntry;
   tasks: Task[];
@@ -163,15 +164,90 @@ export interface AppSettings {
 
 // === Rewards ===
 
+// Vault deposit tier (how long XP has been banked — unlocks discounts)
 export type RewardTier = 'bronze' | 'silver' | 'gold' | 'diamond';
 
-export interface Reward {
+// Reward catalog category (price bracket — used in parent portal + child redemption)
+export type RewardCategory = 'minor' | 'medium' | 'major';
+
+// Reward in the shared Firebase catalog
+export interface SharedReward {
   id: string;
   name: string;
-  description: string;
-  tier: RewardTier;
+  description?: string;
+  category: RewardCategory;
   xpCost: number;
   active: boolean;
+  createdAt: string;
+}
+
+// A redemption request from child → parent. Status flips to approved/denied by parent.
+export interface Redemption {
+  id: string;
+  rewardId: string;
+  rewardName: string;
+  xpCost: number;          // listed cost at time of request
+  requestedAt: string;
+  status: 'pending' | 'approved' | 'denied';
+  approvedAt?: string;
+  deniedAt?: string;
+  denyReason?: string;
+  // Breakdown of how the effective cost was paid (computed at request time)
+  burnPaid: number;
+  vaultPaid: number;
+}
+
+// A custom reward proposal from child. Parent accepts (sets price) or declines (with reason).
+export interface RewardRequest {
+  id: string;
+  name: string;
+  description?: string;
+  requestedAt: string;
+  status: 'pending' | 'accepted' | 'declined';
+  acceptedAt?: string;
+  acceptedXpCost?: number;
+  acceptedCategory?: RewardCategory;
+  declinedAt?: string;
+  declineReason?: string;
+}
+
+// === Family / Parent Portal ===
+
+// A task assigned by parent from the portal, synced via Firebase.
+export interface ParentTask {
+  id: string;
+  name: string;
+  type: 'quick_win' | 'standard' | 'multi_level';
+  assignedAt: string;
+  completed: boolean;
+  completedAt?: string;
+  steps?: string[];
+  urgent?: boolean;              // auto-pins to Top 3 on the child's Dashboard
+  completionMessage?: string;    // shown to child on task complete
+}
+
+// Child state pushed to parent portal in real time. NO private data (mood, notes, chat).
+export interface ChildProgress {
+  lastUpdated: string;
+  bootedAt?: string;
+  sleepHours?: number;
+  batteryMax: number;
+  batteryUsed: number;
+  recoveryUsed: number;
+  topThreeDone: number;
+  topThreeTotal: number;
+  totalXP: number;
+  currentStreak: number;
+  daysActive: number;
+  totalTasksCompleted: number;
+  todayTasksDone: number;
+  todayTasksTotal: number;
+  todayEnergy: number;
+  todayTraining: string;
+  todayXP: number;
+  surgeActive: boolean;
+  vaultBalance: number;
+  burnBalance: number;
 }
 
 // === Chat ===
