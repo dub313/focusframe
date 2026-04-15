@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import {
-  getFirestore,
+  initializeFirestore,
   doc,
   setDoc,
   getDoc,
@@ -30,7 +30,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// ignoreUndefinedProperties so optional fields (urgent, completionMessage,
+// steps, description) can safely be `undefined` in writes without Firestore
+// throwing. Undefined fields are dropped from the document.
+const db = initializeFirestore(app, { ignoreUndefinedProperties: true });
 
 // Re-export for backwards compat with any old imports
 export type { ParentTask, ChildProgress, SharedReward, Redemption, RewardRequest };
