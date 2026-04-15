@@ -50,6 +50,12 @@ type Tab = 'status' | 'tasks' | 'rewards' | 'requests';
 export default function ParentPortal() {
   const { data: settings, set: setSettings } = useStorage<AppSettings>(KEYS.SETTINGS, DEFAULT_SETTINGS);
 
+  function switchDevice() {
+    localStorage.removeItem(KEYS.DEVICE_MODE);
+    window.location.hash = '#/mode';
+    window.location.reload();
+  }
+
   // Auth
   const [authenticated, setAuthenticated] = useState(false);
   const [pinError, setPinError] = useState(false);
@@ -358,7 +364,10 @@ export default function ParentPortal() {
           <h1 className="text-xl font-bold">Parent Portal</h1>
           <Badge color="#10b981">{savedCode}</Badge>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => setAuthenticated(false)}>Lock</Button>
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={switchDevice}>Switch</Button>
+          <Button variant="ghost" size="sm" onClick={() => setAuthenticated(false)}>Lock</Button>
+        </div>
       </div>
 
       {/* Tab bar */}

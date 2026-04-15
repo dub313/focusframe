@@ -1,11 +1,11 @@
-import { useEffect, lazy, Suspense } from 'react';
+import { useEffect, lazy, Suspense, useState } from 'react';
 import { Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { BottomNav } from './components/ui/BottomNav';
 import { useDailyState } from './hooks/useDailyState';
 import { useProfile } from './hooks/useProfile';
 import { useVault } from './hooks/useVault';
 import { useStorage } from './hooks/useStorage';
-import { KEYS } from './lib/keys';
+import { KEYS, type DeviceMode } from './lib/keys';
 import { isDayTransition, getToday, createFreshState, rolloverState } from './lib/day';
 import type { DailySummary } from './types';
 
@@ -25,6 +25,7 @@ const Guide = lazy(() => import('./screens/Guide'));
 const CalendarScreen = lazy(() => import('./screens/Calendar'));
 const ParentPortal = lazy(() => import('./screens/ParentPortal'));
 const RewardsScreen = lazy(() => import('./screens/Rewards'));
+const DeviceModeScreen = lazy(() => import('./screens/DeviceMode'));
 
 function LoadingSpinner() {
   return (
@@ -42,8 +43,27 @@ export function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Device mode (parent vs kid) is read once on mount from localStorage.
+  // null = not yet picked → show picker; 'parent' | 'kid' = routes accordingly.
+  const [deviceMode, setDeviceMode] = useState<DeviceMode | null>(() => {
+    const stored = localStorage.getItem(KEYS.DEVICE_MODE);
+    return stored === 'parent' || stored === 'kid' ? stored : null;
+  });
+
+  // Keep in sync if mode changes mid-session (e.g. Settings "switch device")
+  useEffect(() => {
+    function refresh() {
+      const stored = localStorage.getItem(KEYS.DEVICE_MODE);
+      setDeviceMode(stored === 'parent' || stored === 'kid' ? stored : null);
+    }
+    window.addEventListener('storage', refresh);
+    return () => window.removeEventListener('storage', refresh);
+  }, []);
+
   const loading = stateLoading || profileLoading || vaultLoading || historyLoading;
-  const needsWelcome = !loading && !profile.userName;
+  const isParent = deviceMode === 'parent';
+  const needsMode = deviceMode === null;
+  const needsWelcome = !loading && !isParent && !profile.userName;
   const appName = profile.appName || 'FocusFrame';
 
   // Update document title with custom app name
@@ -53,7 +73,7 @@ export function App() {
 
   // Day transition check on mount and visibility change
   useEffect(() => {
-    if (loading || needsWelcome) return;
+    if (loading || needsWelcome || isParent) return;
 
     function checkDayTransition() {
       if (isDayTransition(state.date)) {
@@ -80,26 +100,47 @@ export function App() {
     return () => document.removeEventListener('visibilitychange', handleVisibility);
   }, [loading, needsWelcome, state, profile, vault, history, setState, setProfile, setVault, setHistory]);
 
-  // Redirect logic: welcome → boot → dashboard
+  // Redirect logic: mode picker → parent portal OR welcome → boot → dashboard
   useEffect(() => {
     if (loading) return;
     const path = location.pathname;
+
+    if (needsMode && path !== '/mode') {
+      navigate('/mode', { replace: true });
+      return;
+    }
+
+    if (isParent) {
+      // Parent device: always land on the portal. Allow /settings for the
+      // "switch device mode" escape hatch; everything else redirects home.
+      if (path !== '/parent' && path !== '/settings') {
+        navigate('/parent', { replace: true });
+      }
+      return;
+    }
 
     if (needsWelcome && path !== '/welcome') {
       navigate('/welcome', { replace: true });
     } else if (!needsWelcome && !state.bootDone && path !== '/boot' && path !== '/welcome') {
       navigate('/boot', { replace: true });
     }
-  }, [loading, needsWelcome, state.bootDone, location.pathname, navigate]);
+  }, [loading, needsMode, isParent, needsWelcome, state.bootDone, location.pathname, navigate]);
 
   if (loading) return <LoadingSpinner />;
 
-  const showNav = location.pathname !== '/boot' && location.pathname !== '/welcome' && location.pathname !== '/guide';
+  const showNav =
+    !isParent &&
+    !needsMode &&
+    location.pathname !== '/boot' &&
+    location.pathname !== '/welcome' &&
+    location.pathname !== '/guide' &&
+    location.pathname !== '/mode';
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] pb-20">
       <Suspense fallback={<LoadingSpinner />}>
         <Routes>
+          <Route path="/mode" element={<DeviceModeScreen />} />
           <Route path="/welcome" element={<Welcome />} />
           <Route path="/boot" element={needsWelcome ? <Navigate to="/welcome" replace /> : <BootSequence />} />
           <Route path="/" element={

@@ -7,4 +7,7 @@ export const KEYS = {
   CONTINUOUS: 'focusframe:continuous',
   SETTINGS: 'focusframe:settings',
   CHAT: 'focusframe:chat',
+  DEVICE_MODE: 'focusframe:deviceMode',
 } as const;
+
+export type DeviceMode = 'parent' | 'kid';

@@ -219,6 +219,24 @@ export default function SettingsScreen() {
         )}
       </Card>
 
+      <Card className="mb-4">
+        <h2 className="text-sm font-semibold text-[#8888a0] mb-3">Device Mode</h2>
+        <p className="text-xs text-[#555570] mb-3">
+          This device is in athlete mode. Switch if you're setting it up as a parent portal device.
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            localStorage.removeItem(KEYS.DEVICE_MODE);
+            window.location.hash = '#/mode';
+            window.location.reload();
+          }}
+        >
+          Switch device
+        </Button>
+      </Card>
+
       <Card>
         <h2 className="text-sm font-semibold text-[#8888a0] mb-3">About</h2>
         <p className="text-sm text-[#555570]">
