@@ -8,6 +8,14 @@ export const CATEGORY_XP_RANGE: Record<RewardCategory, { min: number; max: numbe
   major: { min: 2000, max: 5000, label: 'big-ticket goals' },
 };
 
+// Derive the category from the XP cost. Rewards auto-bucket by price:
+// <500 → minor, 500–1999 → medium, 2000+ → major.
+export function categoryForCost(xpCost: number): RewardCategory {
+  if (xpCost >= 2000) return 'major';
+  if (xpCost >= 500) return 'medium';
+  return 'minor';
+}
+
 export const CATEGORY_LABEL: Record<RewardCategory, string> = {
   minor: 'Minor',
   medium: 'Medium',

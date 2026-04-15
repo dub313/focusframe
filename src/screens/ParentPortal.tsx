@@ -25,7 +25,7 @@ import {
   acceptRewardRequest,
   declineRewardRequest,
 } from '../lib/firebase';
-import { REWARD_PRESETS, CATEGORY_LABEL, CATEGORY_COLOR, CATEGORY_XP_RANGE } from '../lib/rewards';
+import { REWARD_PRESETS, CATEGORY_LABEL, CATEGORY_COLOR, CATEGORY_XP_RANGE, categoryForCost } from '../lib/rewards';
 import type {
   AppSettings,
   ParentTask,
@@ -232,20 +232,22 @@ export default function ParentPortal() {
 
   async function handleSaveReward() {
     if (!rewardName.trim() || !rewardCost || !showAddReward) return;
+    const cost = parseInt(rewardCost) || 100;
+    const category = categoryForCost(cost);  // auto-bucket by cost
     if (editingRewardId) {
       await updateReward(savedCode, editingRewardId, {
         name: rewardName.trim(),
         description: rewardDesc.trim() || undefined,
-        category: showAddReward,
-        xpCost: parseInt(rewardCost) || 100,
+        category,
+        xpCost: cost,
       });
     } else {
       const reward: SharedReward = {
         id: crypto.randomUUID(),
         name: rewardName.trim(),
         description: rewardDesc.trim() || undefined,
-        category: showAddReward,
-        xpCost: parseInt(rewardCost) || 100,
+        category,
+        xpCost: cost,
         active: true,
         createdAt: new Date().toISOString(),
       };
@@ -886,20 +888,9 @@ export default function ParentPortal() {
               className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-xl px-4 py-3 text-white
                 placeholder:text-[#555570] focus:border-[#22d3ee] focus:outline-none mb-4 font-mono"
             />
-            {editingRewardId && (
-              <div className="flex gap-1 mb-4">
-                {(['minor', 'medium', 'major'] as RewardCategory[]).map((c) => (
-                  <button
-                    key={c}
-                    onClick={() => setShowAddReward(c)}
-                    className={`flex-1 py-1.5 rounded text-[10px] uppercase transition-all
-                      ${showAddReward === c ? 'bg-[#22d3ee]/10 text-[#22d3ee] border border-[#22d3ee]' : 'border border-[#2a2a3a] text-[#8888a0]'}`}
-                  >
-                    {c}
-                  </button>
-                ))}
-              </div>
-            )}
+            <p className="text-[10px] text-[#555570] mb-4">
+              Category is set by cost: &lt;500 = Minor · 500–1999 = Medium · 2000+ = Major
+            </p>
             <div className="flex gap-3">
               <Button variant="secondary" className="flex-1" onClick={resetRewardForm}>Cancel</Button>
               <Button className="flex-1" disabled={!rewardName.trim() || !rewardCost} onClick={handleSaveReward}>
